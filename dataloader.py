@@ -87,7 +87,7 @@ def buildLabelIndex(labels):
 
 def load_data(file):
     with open(file, 'rb') as fo:
-        data = pickle.load(fo)
+        data = pickle.load(fo, encoding='latin1')
     return data
 
 
@@ -162,8 +162,8 @@ class MiniImageNet(data.Dataset):
         else:
             raise ValueError('Not valid phase {0}'.format(self.phase))
 
-        mean_pix = [x/255.0 for x in [120.39586422,  115.59361427, 104.54012653]]
-        std_pix = [x/255.0 for x in [70.68188272,  68.27635443,  72.54505529]]
+        mean_pix = [x / 255.0 for x in [120.39586422,  115.59361427, 104.54012653]]
+        std_pix = [x / 255.0 for x in [70.68188272,  68.27635443,  72.54505529]]
         normalize = transforms.Normalize(mean=mean_pix, std=std_pix)
 
         if (self.phase=='test' or self.phase=='val') or (do_not_use_random_transf==True):
@@ -375,7 +375,7 @@ class FewShotDataloader():
         Tnovel = []
         Exemplars = []
         assert((nTestNovel % nKnovel) == 0)
-        nEvalExamplesPerClass = nTestNovel / nKnovel
+        nEvalExamplesPerClass = nTestNovel // nKnovel
 
         for Knovel_idx in range(len(Knovel)):
             imd_ids = self.sampleImageIdsFrom(
@@ -464,7 +464,7 @@ class FewShotDataloader():
         return self.get_iterator(epoch)
 
     def __len__(self):
-        return (self.epoch_size / self.batch_size)
+        return (self.epoch_size // self.batch_size)
 
 
 class ImageNetLowShot(data.Dataset):
@@ -594,7 +594,7 @@ class SimpleDataloader():
         return self.get_iterator()
 
     def __len__(self):
-        return (self.epoch_size / self.batch_size)
+        return (self.epoch_size // self.batch_size)
 
 
 class ImageNetLowShotFeaturesLegacy():
@@ -883,7 +883,7 @@ class LowShotDataloader():
         return self.get_iterator(epoch)
 
     def __len__(self):
-        return int(math.ceil(float(self.epoch_size)/self.batch_size))
+        return int(math.ceil(float(self.epoch_size) / self.batch_size))
 
 
 class LowShotDataloaderLegacy():
@@ -1072,4 +1072,4 @@ class LowShotDataloaderLegacy():
         return self.get_iterator(epoch)
 
     def __len__(self):
-        return int(math.ceil(float(self.epoch_size)/self.batch_size))
+        return int(math.ceil(float(self.epoch_size) / self.batch_size))

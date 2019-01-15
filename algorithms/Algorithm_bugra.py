@@ -1,4 +1,5 @@
 """Define a generic class for training and testing learning algorithms."""
+
 import os
 import os.path
 import glob
@@ -29,7 +30,6 @@ class Algorithm():
         self.allocate_tensors()
         self.curr_epoch = 0
         self.optimizers = {}
-
         self.keep_best_model_metric_name = (
             opt['best_metric'] if ('best_metric' in opt) else None)
 
@@ -72,7 +72,7 @@ class Algorithm():
         self.networks = {}
         self.optim_params = {}
 
-        for key, val in networks_defs.items():
+        for key, val in list(networks_defs.items()):
             self.logger.info('Set network %s' % key)
             def_file = val['def_file']
             net_opt = val['opt']
@@ -105,11 +105,10 @@ class Algorithm():
 
         assert(os.path.isfile(pretrained_path))
         pretrained_model = torch.load(pretrained_path)
-        
         for parameter_name in pretrained_model['network']:
             print(parameter_name, "\t", pretrained_model['network'][parameter_name].size())
-
-        if pretrained_model['network'].keys() == network.state_dict().keys():
+		
+        if list(pretrained_model['network'].keys()) == list(network.state_dict().keys()):
             network.load_state_dict(pretrained_model['network'])
         else:
             self.logger.info('==> WARNING: network parameters in pre-trained file'
@@ -122,7 +121,7 @@ class Algorithm():
 
     def init_all_optimizers(self):
         self.optimizers = {}
-        for key, oparams in self.optim_params.items():
+        for key, oparams in list(self.optim_params.items()):
             self.optimizers[key] = None
             if oparams != None:
                 self.optimizers[key] = self.init_optimizer(
@@ -132,7 +131,7 @@ class Algorithm():
         optim_type = optim_opts['optim_type']
         learning_rate = optim_opts['lr']
         optimizer = None
-        parameters = filter(lambda p: p.requires_grad, net.parameters())
+        parameters = [p for p in net.parameters() if p.requires_grad]
         self.logger.info('Initialize optimizer: %s with params: %s for netwotk: %s'
             % (optim_type, optim_opts, key))
         if optim_type == 'adam':
@@ -151,7 +150,7 @@ class Algorithm():
     def init_all_criterions(self):
         criterions_defs = self.opt['criterions']
         self.criterions = {}
-        for key, val in criterions_defs.items():
+        for key, val in list(criterions_defs.items()):
             crit_type = val['ctype']
             crit_opt = val['opt'] if ('opt' in val) else None
             self.logger.info('Initialize criterion[%s]: %s with options: %s' %
@@ -162,17 +161,17 @@ class Algorithm():
         return getattr(nn, ctype)(copt)
 
     def load_to_gpu(self):
-        for key, net in self.networks.items():
+        for key, net in list(self.networks.items()):
             self.networks[key] = net.cuda()
 
-        for key, criterion in self.criterions.items():
+        for key, criterion in list(self.criterions.items()):
             self.criterions[key] = criterion.cuda()
 
-        for key, tensor in self.tensors.items():
+        for key, tensor in list(self.tensors.items()):
             self.tensors[key] = tensor.cuda()
 
     def save_checkpoint(self, epoch, suffix='', metric=None):
-        for key, net in self.networks.items():
+        for key, net in list(self.networks.items()):
             if self.optimizers[key] == None: continue
             self.save_network(key, epoch, suffix=suffix, metric=metric)
             self.save_optimizer(key, epoch, suffix=suffix)
@@ -198,7 +197,7 @@ class Algorithm():
     def load_checkpoint(self, epoch, train=True, suffix=''):
         self.logger.info('Load checkpoint of epoch %s' % (str(epoch)))
 
-        for key, net in self.networks.items(): # Load networks
+        for key, net in list(self.networks.items()): # Load networks
             if self.optim_params[key] == None: continue
             if epoch == '*':
                 epoch = self.find_most_recent_epoch(key, suffix)
@@ -206,14 +205,14 @@ class Algorithm():
 
         if train: # initialize and load optimizers
             self.init_all_optimizers()
-            for key, net in self.networks.items():
+            for key, net in list(self.networks.items()):
                 if self.optim_params[key] == None: continue
                 self.load_optimizer(key, epoch, suffix)
 
         self.curr_epoch = epoch
 
     def delete_checkpoint(self, epoch, suffix=''):
-        for key, net in self.networks.items():
+        for key, net in list(self.networks.items()):
             if self.optimizers[key] == None: continue
 
             filename_net = self._get_net_checkpoint_filename(key, epoch)+suffix
@@ -297,7 +296,7 @@ class Algorithm():
         self.dloader = data_loader
         self.dataset_train = data_loader.dataset
 
-        for key, network in self.networks.items():
+        for key, network in list(self.networks.items()):
             if self.optimizers[key] == None: network.eval()
             else: network.train()
 
@@ -306,12 +305,12 @@ class Algorithm():
         self.bnumber = len(data_loader())
         for idx, batch in enumerate(tqdm(data_loader(epoch))):
             self.biter = idx # batch iteration.
-            self.global_iter = self.curr_epoch * len(data_loader) + self.biter
+            self.global_iter = self.curr_epoch * len(data_loader()) + self.biter
             train_stats_this = self.train_step(batch)
             train_stats.update(train_stats_this)
             if (idx+1) % disp_step == 0:
                 self.logger.info('==> Iteration [%3d][%4d / %4d]: %s' %
-                                 (epoch+1, idx+1, len(data_loader),
+                                 (epoch+1, idx+1, len(data_loader()),
                                   train_stats.average()))
 
         return train_stats.average()
@@ -322,17 +321,16 @@ class Algorithm():
         self.dloader = dloader
         self.dataset_eval = dloader.dataset
         self.logger.info('==> Dataset: %s [%d batches]' %
-                         (dloader.dataset.name, len(dloader)))
-        for key, network in self.networks.items():
+                         (dloader.dataset.name, len(dloader())))
+        for key, network in list(self.networks.items()):
             network.eval()
 
         eval_stats = utils.DAverageMeter()
-        self.bnumber = len(dloader)
+        self.bnumber = len(dloader())
         for idx, batch in enumerate(tqdm(dloader())):
             self.biter = idx
             eval_stats_this = self.evaluation_step(batch)
             eval_stats.update(eval_stats_this)
-
         self.logger.info('==> Results: %s' % eval_stats.average())
 
         return eval_stats.average()
@@ -340,10 +338,9 @@ class Algorithm():
     def adjust_learning_rates(self, epoch):
         # filter out the networks that are not trainable and that do
         # not have a learning rate Look Up Table (LUT_lr) in their optim_params
-        optim_params_filtered = {k:v for k,v in self.optim_params.items()
+        optim_params_filtered = {k:v for k,v in list(self.optim_params.items())
             if (v != None and ('LUT_lr' in v))}
-
-        for key, oparams in optim_params_filtered.items():
+        for key, oparams in list(optim_params_filtered.items()):
             LUT = oparams['LUT_lr']
             lr = next((lr for (max_epoch, lr) in LUT if max_epoch>epoch), LUT[-1][1])
             self.logger.info('==> Set to %s optimizer lr = %.10f' % (key, lr))
@@ -358,6 +355,7 @@ class Algorithm():
     def keep_record_of_best_model(self, eval_stats, current_epoch):
         if self.keep_best_model_metric_name is not None:
             metric_name = self.keep_best_model_metric_name
+           
             if (metric_name not in eval_stats):
                 raise ValueError('The provided metric {0} for keeping the best '
                                  'model is not computed by the evaluation routine.'
@@ -409,3 +407,4 @@ class Algorithm():
             the gpu device.
         """
         self.tensors = {}
+
