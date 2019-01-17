@@ -18,7 +18,7 @@ def top1accuracy(output, target):
     pred = pred.view(-1)
     target = target.view(-1)
     accuracy = 100 * pred.eq(target).float().mean()
-    return accuracy
+    return accuracy.item()
 
 
 def activate_dropout_units(model):
@@ -33,7 +33,7 @@ class FewShot(Algorithm):
         self.nKbase = torch.LongTensor()
         self.activate_dropout = (
             opt['activate_dropout'] if ('activate_dropout' in opt) else False)
-        self.keep_best_model_metric_name = 'AccuracyNovel_cnf'
+        self.keep_best_model_metric_name = 'AccuracyNovel'
 
     def allocate_tensors(self):
         self.tensors = {}
@@ -52,15 +52,11 @@ class FewShot(Algorithm):
             train_test_stage = 'fewshot'
             assert(len(batch) == 6)
             images_train, labels_train, images_test, labels_test, K, nKbase = batch
-            if nKbase.shape[0] == 1:
-                self.nKbase = nKbase.item()
-            else:
-                self.nKbase = nKbase[0]
+            self.nKbase = nKbase[0].item() 
             self.tensors['images_train'].resize_(images_train.size()).copy_(images_train)
             self.tensors['labels_train'].resize_(labels_train.size()).copy_(labels_train)
             labels_train = self.tensors['labels_train']
-
-            nKnovel = 1 + labels_train.max() - self.nKbase
+            nKnovel = 1 + labels_train.max().item() - self.nKbase
 
             labels_train_1hot_size = list(labels_train.size()) + [nKnovel,]
             labels_train_unsqueeze = labels_train.unsqueeze(dim=labels_train.dim())
@@ -73,10 +69,7 @@ class FewShot(Algorithm):
             train_test_stage = 'base_classification'
             assert(len(batch) == 4)
             images_test, labels_test, K, nKbase = batch
-            if nKbase.shape[0] == 1:
-                self.nKbase = nKbase.item()
-            else:
-                self.nKbase = nKbase[0]
+            self.nKbase = nKbase.squeeze()[0]
             self.tensors['images_test'].resize_(images_test.size()).copy_(images_test)
             self.tensors['labels_test'].resize_(labels_test.size()).copy_(labels_test)
             self.tensors['Kids'].resize_(K.size()).copy_(K)
@@ -204,10 +197,10 @@ class FewShot(Algorithm):
         batch_size, num_train_examples, channels, height, width = images_train.size()
         num_test_examples = images_test.size(1)
         features_train_var = feat_model(
-            images_train_var.view(batch_size * num_train_examples, channels, height, width)
+            images_train.view(batch_size * num_train_examples, channels, height, width)
         )
         features_test_var = feat_model(
-            images_test_var.view(batch_size * num_test_examples, channels, height, width)
+            images_test.view(batch_size * num_test_examples, channels, height, width)
         )
         features_train_var = features_train_var.view(
             [batch_size, num_train_examples,] + list(features_train_var.size()[1:])
